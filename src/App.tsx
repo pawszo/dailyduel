@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { supabase } from '@/src/lib/supabase';
 
 interface Game {
@@ -25,7 +24,6 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
-  const [isGameOpen, setIsGameOpen] = useState(false);
 
   useEffect(() => {
     async function fetchGames() {
@@ -81,15 +79,14 @@ export default function App() {
 
         if (error) throw error;
         
-        if (data && data.length > 0) {
-          setGames(data);
-        } else {
-          setGames(fallbackGames);
-        }
+        const gamesList = data && data.length > 0 ? data : fallbackGames;
+        setGames(gamesList);
+        // Auto-select first game
+        if (gamesList.length > 0) setSelectedGame(gamesList[0]);
       } catch (err: any) {
         console.error('Error fetching games:', err);
-        // Don't block the UI, just use fallbacks and show a subtle warning
         setGames(fallbackGames);
+        if (fallbackGames.length > 0) setSelectedGame(fallbackGames[0]);
         setError('Using local collection (Supabase not connected)');
       } finally {
         setLoading(false);
@@ -99,228 +96,179 @@ export default function App() {
     fetchGames();
   }, []);
 
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
+
+  const categories = useMemo(() => {
+    const cats = ['All', ...new Set(games.map(game => game.category))];
+    return cats;
+  }, [games]);
+
   const filteredGames = useMemo(() => {
-    return games.filter(game => 
-      game.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      game.category.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [games, searchQuery]);
+    return games.filter(game => {
+      const matchesSearch = game.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          game.category.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCategory = selectedCategory === 'All' || game.category === selectedCategory;
+      return matchesSearch && matchesCategory;
+    });
+  }, [games, searchQuery, selectedCategory]);
 
   const handlePlay = (game: Game) => {
     setSelectedGame(game);
-    setIsGameOpen(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
     <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-orange-500 selection:text-white">
-      {/* Hero Section */}
-      <header className="relative overflow-hidden border-b border-white/10 bg-gradient-to-b from-orange-500/10 to-transparent pt-16 pb-24">
-        <div className="container mx-auto px-4 relative z-10">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="max-w-3xl"
-          >
-            <div className="flex items-center gap-2 mb-6">
-              <Badge variant="outline" className="border-orange-500/50 text-orange-500 bg-orange-500/5 px-3 py-1">
-                <Users className="w-3 h-3 mr-2" />
-                Local Multiplayer
-              </Badge>
-              <Badge variant="outline" className="border-white/20 text-white/60 bg-white/5 px-3 py-1">
-                <Keyboard className="w-3 h-3 mr-2" />
-                One Device
-              </Badge>
-            </div>
-            <h1 className="text-6xl md:text-8xl font-black tracking-tighter mb-6 uppercase leading-[0.85]">
-              DuoPlay <span className="text-orange-500">Arcade</span>
-            </h1>
-            <p className="text-xl text-white/60 max-w-xl leading-relaxed">
-              Instant local multiplayer games for you and a friend. No downloads, no accounts, just pure gaming on one keyboard.
-            </p>
-          </motion.div>
-        </div>
-        
-        {/* Background Decorative Elements */}
-        <div className="absolute top-0 right-0 w-1/2 h-full opacity-20 pointer-events-none">
-          <div className="absolute top-1/4 right-1/4 w-64 h-64 bg-orange-500 rounded-full blur-[120px]" />
-          <div className="absolute bottom-1/4 right-1/2 w-96 h-96 bg-blue-500 rounded-full blur-[150px]" />
+      {/* Header */}
+      <header className="border-b border-white/10 bg-black/50 backdrop-blur-md sticky top-0 z-50">
+        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Gamepad2 className="w-8 h-8 text-orange-500" />
+            <span className="text-2xl font-black tracking-tighter uppercase">DailyDuel<span className="text-orange-500">.space</span></span>
+          </div>
+          <div className="hidden md:flex items-center gap-6 text-sm font-medium text-white/60">
+            <span className="flex items-center gap-2"><Users className="w-4 h-4" /> Local Multiplayer</span>
+            <span className="flex items-center gap-2"><Keyboard className="w-4 h-4" /> One Keyboard</span>
+          </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="container mx-auto px-4 -mt-12 pb-24">
-        {/* Search Bar */}
-        <div className="relative max-w-2xl mx-auto mb-16">
-          <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-            <Search className="w-5 h-5 text-white/40" />
-          </div>
-          <Input
-            type="text"
-            placeholder="Search games or categories..."
-            className="w-full h-16 pl-12 pr-4 bg-white/5 border-white/10 rounded-2xl text-xl focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-all placeholder:text-white/20"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-
-        {/* Loading State */}
-        {loading && (
-          <div className="flex flex-col items-center justify-center py-24 gap-4">
-            <Loader2 className="w-12 h-12 text-orange-500 animate-spin" />
-            <p className="text-white/40 font-medium">Loading arcade collection...</p>
-          </div>
-        )}
-
-        {/* Error State */}
-        {error && !loading && (
-          <div className="max-w-md mx-auto bg-red-500/10 border border-red-500/20 rounded-2xl p-8 text-center">
-            <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-            <h3 className="text-xl font-bold mb-2">Connection Error</h3>
-            <p className="text-white/60 mb-6">{error}</p>
-            <Button 
-              onClick={() => window.location.reload()}
-              className="bg-white text-black hover:bg-white/90"
-            >
-              Retry Connection
-            </Button>
-          </div>
-        )}
-
-        {/* Games Grid */}
-        {!loading && !error && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <AnimatePresence mode="popLayout">
-              {filteredGames.map((game, index) => (
-                <motion.div
-                  key={game.id}
-                  layout
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  transition={{ duration: 0.3, delay: index * 0.05 }}
-                >
-                  <Card className="group bg-white/5 border-white/10 overflow-hidden hover:border-orange-500/50 transition-all duration-500 hover:shadow-[0_0_30px_rgba(249,115,22,0.15)]">
-                    <div className="relative aspect-video overflow-hidden">
-                      <img
-                        src={game.thumbnail}
-                        alt={game.title}
-                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                        referrerPolicy="no-referrer"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 group-hover:opacity-40 transition-opacity" />
-                      <div className="absolute top-4 left-4">
-                        <Badge className="bg-orange-500 text-white border-none">{game.category}</Badge>
-                      </div>
-                    </div>
-                    <CardHeader>
-                      <div className="flex justify-between items-start">
-                        <CardTitle className="text-2xl font-bold tracking-tight text-white group-hover:text-orange-500 transition-colors">
-                          {game.title}
-                        </CardTitle>
-                        <div className="flex items-center text-white/40 text-sm">
-                          <Users className="w-4 h-4 mr-1" />
-                          {game.players}
-                        </div>
-                      </div>
-                      <CardDescription className="text-white/50 text-base leading-relaxed mt-2">
-                        {game.description}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardFooter className="flex flex-col items-stretch gap-4 pt-0">
-                      <div className="flex items-center gap-2 text-xs font-mono text-white/30 bg-white/5 p-3 rounded-lg border border-white/5">
-                        <Keyboard className="w-4 h-4" />
-                        {game.controls}
-                      </div>
-                      <Button 
-                        onClick={() => handlePlay(game)}
-                        className="w-full h-12 bg-white text-black hover:bg-orange-500 hover:text-white transition-all font-bold text-lg rounded-xl group/btn"
-                      >
-                        <Play className="w-5 h-5 mr-2 fill-current group-hover/btn:scale-110 transition-transform" />
-                        PLAY NOW
-                      </Button>
-                    </CardFooter>
-                  </Card>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </div>
-        )}
-
-        {!loading && !error && filteredGames.length === 0 && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-center py-24"
-          >
-            <Gamepad2 className="w-16 h-16 text-white/10 mx-auto mb-4" />
-            <h3 className="text-2xl font-bold text-white/40">No games found matching "{searchQuery}"</h3>
-            <Button 
-              variant="link" 
-              className="text-orange-500 mt-2"
-              onClick={() => setSearchQuery('')}
-            >
-              Clear search
-            </Button>
-          </motion.div>
-        )}
-      </main>
-
-      {/* Game Player Dialog */}
-      <Dialog open={isGameOpen} onOpenChange={setIsGameOpen}>
-        <DialogContent className="max-w-5xl w-[95vw] h-[90vh] bg-[#0a0a0a] border-white/10 p-0 overflow-hidden flex flex-col">
-          <DialogHeader className="p-4 border-b border-white/10 flex-row items-center justify-between space-y-0">
-            <div>
-              <DialogTitle className="text-xl font-bold flex items-center gap-2">
-                <Gamepad2 className="w-5 h-5 text-orange-500" />
-                {selectedGame?.title}
-              </DialogTitle>
-              <DialogDescription className="text-white/40">
-                {selectedGame?.controls}
-              </DialogDescription>
+      {/* Game Viewport Section */}
+      <section className="bg-black border-b border-white/10 relative">
+        <div className="w-full h-[60vh] min-h-[400px] lg:h-[75vh] relative group overflow-hidden">
+          {selectedGame ? (
+            <iframe
+              src={selectedGame.url}
+              className="w-full h-full border-none"
+              title={selectedGame.title}
+              key={selectedGame.id}
+            />
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-orange-500/5 to-transparent">
+              <Loader2 className="w-12 h-12 text-orange-500 animate-spin mb-4" />
+              <p className="text-white/40 font-display text-xl uppercase tracking-widest">Initializing Arcade...</p>
             </div>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={() => setIsGameOpen(false)}
-              className="hover:bg-white/10 rounded-full"
-            >
-              <X className="w-5 h-5" />
-            </Button>
-          </DialogHeader>
-          <div className="flex-1 bg-black relative">
-            {selectedGame && (
-              <iframe
-                src={selectedGame.url}
-                className="w-full h-full border-none"
-                title={selectedGame.title}
-              />
-            )}
-          </div>
-          <div className="p-4 bg-white/5 border-t border-white/10 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 text-sm text-white/60">
-                <Info className="w-4 h-4" />
-                Press F11 for Fullscreen
+          )}
+          
+          {/* Viewport Overlay Info */}
+          <div className="absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-black via-black/80 to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+            <div className="container mx-auto flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+              <div>
+                <Badge className="bg-orange-500 text-white mb-3">{selectedGame?.category}</Badge>
+                <h2 className="text-4xl md:text-5xl font-black uppercase tracking-tighter leading-none mb-2">{selectedGame?.title}</h2>
+                <p className="text-white/60 max-w-2xl text-lg">{selectedGame?.description}</p>
+              </div>
+              <div className="bg-white/5 backdrop-blur-md p-4 rounded-xl border border-white/10">
+                <p className="text-[10px] font-mono text-white/40 uppercase tracking-widest mb-1">Controller Mapping</p>
+                <p className="text-sm font-bold text-orange-500 whitespace-nowrap">{selectedGame?.controls}</p>
               </div>
             </div>
-            <Button variant="outline" className="border-white/10 hover:bg-white/5" onClick={() => setIsGameOpen(false)}>
-              Back to Arcade
-            </Button>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      </section>
+
+      {/* Main Content */}
+      <main className="container mx-auto px-4 py-12">
+        {/* Search & Filter Bar */}
+        <div className="flex flex-col gap-8 mb-12">
+          <div className="flex flex-col md:flex-row gap-6 items-center justify-between">
+            <div className="relative w-full md:max-w-md">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/20" />
+              <Input
+                type="text"
+                placeholder="Search games..."
+                className="w-full h-12 pl-12 bg-white/5 border-white/10 rounded-xl focus:ring-orange-500/50"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            
+            {error && (
+              <Badge variant="outline" className="border-orange-500/20 text-orange-500/60 bg-orange-500/5 py-2 px-4 rounded-full">
+                <AlertCircle className="w-4 h-4 mr-2" />
+                {error}
+              </Badge>
+            )}
+          </div>
+
+          {/* Category Filters */}
+          <div className="flex flex-wrap gap-2">
+            {categories.map((category) => (
+              <button
+                key={category}
+                onClick={() => setSelectedCategory(category)}
+                className={`px-6 py-2 rounded-full text-sm font-bold transition-all duration-300 border ${
+                  selectedCategory === category
+                    ? 'bg-orange-500 border-orange-500 text-white shadow-[0_0_15px_rgba(249,115,22,0.4)]'
+                    : 'bg-white/5 border-white/10 text-white/60 hover:border-white/30 hover:text-white'
+                }`}
+              >
+                {category}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Games Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <AnimatePresence mode="popLayout">
+            {filteredGames.map((game, index) => (
+              <motion.div
+                key={game.id}
+                layout
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: index * 0.05 }}
+              >
+                <Card 
+                  onClick={() => handlePlay(game)}
+                  className={`group cursor-pointer overflow-hidden transition-all duration-500 ${
+                    selectedGame?.id === game.id 
+                    ? 'bg-orange-500/10 border-orange-500 shadow-[0_0_20px_rgba(249,115,22,0.2)]' 
+                    : 'bg-white/5 border-white/10 hover:border-white/30'
+                  }`}
+                >
+                  <div className="relative aspect-video overflow-hidden">
+                    <img
+                      src={game.thumbnail}
+                      alt={game.title}
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors" />
+                    {selectedGame?.id === game.id && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-orange-500/20 backdrop-blur-[2px]">
+                        <Badge className="bg-orange-500 text-white animate-pulse">NOW PLAYING</Badge>
+                      </div>
+                    )}
+                  </div>
+                  <CardHeader className="p-4">
+                    <CardTitle className="text-lg font-bold tracking-tight flex items-center justify-between">
+                      {game.title}
+                      <Play className={`w-4 h-4 ${selectedGame?.id === game.id ? 'text-orange-500 fill-current' : 'text-white/20'}`} />
+                    </CardTitle>
+                    <CardDescription className="text-xs line-clamp-1">{game.category} • {game.players}</CardDescription>
+                  </CardHeader>
+                </Card>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
+      </main>
 
       {/* Footer */}
-      <footer className="border-t border-white/5 py-12 bg-black/50">
+      <footer className="border-t border-white/5 py-12 bg-black">
         <div className="container mx-auto px-4 text-center">
           <div className="flex items-center justify-center gap-2 mb-4">
             <Gamepad2 className="w-6 h-6 text-orange-500" />
-            <span className="text-xl font-black tracking-tighter uppercase">DuoPlay</span>
+            <span className="text-xl font-black tracking-tighter uppercase">DailyDuel<span className="text-orange-500">.space</span></span>
           </div>
-          <p className="text-white/40 text-sm">
-            &copy; {new Date().getFullYear()} DuoPlay Arcade. Built for local multiplayer fun.
+          <p className="text-white/40 text-sm max-w-md mx-auto">
+            Quick local multiplayer games for one keyboard or device. No downloads, no accounts, just pure gaming.
           </p>
+          <div className="mt-8 pt-8 border-t border-white/5 text-white/20 text-xs">
+            &copy; {new Date().getFullYear()} DailyDuel.space. All rights reserved.
+          </div>
         </div>
       </footer>
     </div>
