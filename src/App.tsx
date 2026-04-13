@@ -193,10 +193,22 @@ export default function App() {
 
         if (error) throw error;
         
-        const gamesList = data && data.length > 0 ? data : fallbackGames;
-        setGames(gamesList);
-        // Auto-select first game
-        if (gamesList.length > 0) setSelectedGame(gamesList[0]);
+        // Merge fallback games with database games, prioritizing database versions
+        const dbGames = data || [];
+        const mergedGames = [...fallbackGames];
+        
+        dbGames.forEach(dbGame => {
+          const index = mergedGames.findIndex(g => g.id === dbGame.id);
+          if (index !== -1) {
+            mergedGames[index] = dbGame;
+          } else {
+            mergedGames.push(dbGame);
+          }
+        });
+
+        setGames(mergedGames);
+        // Auto-select first game if none selected
+        if (mergedGames.length > 0 && !selectedGame) setSelectedGame(mergedGames[0]);
       } catch (err: any) {
         console.error('Error fetching games:', err);
         setGames(fallbackGames);
