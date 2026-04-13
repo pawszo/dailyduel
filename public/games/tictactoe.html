@@ -42,6 +42,7 @@
                     cell.classList.add(currentPlayer.toLowerCase());
                     if (checkWinner()) {
                         status.innerText = `Player ${currentPlayer} Wins!`;
+                        window.parent.postMessage({ type: 'AWARD_COINS', amount: 10 }, '*');
                     } else if (board.every(c => c !== '')) {
                         status.innerText = "It's a Draw!";
                     } else {

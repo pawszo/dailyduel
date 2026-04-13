@@ -66,11 +66,13 @@
                snake1.some(s => s.x === head1.x && s.y === head1.y) ||
                snake2.some(s => s.x === head1.x && s.y === head1.y)) {
                 gameOver = true; winner = 'Player 2 Wins!';
+                window.parent.postMessage({ type: 'AWARD_COINS', amount: 10 }, '*');
             }
             if(head2.x < 0 || head2.x >= tileCount || head2.y < 0 || head2.y >= tileCount || 
                snake2.some(s => s.x === head2.x && s.y === head2.y) ||
                snake1.some(s => s.x === head2.x && s.y === head2.y)) {
                 gameOver = true; winner = 'Player 1 Wins!';
+                window.parent.postMessage({ type: 'AWARD_COINS', amount: 10 }, '*');
             }
 
             if(gameOver) return;

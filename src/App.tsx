@@ -1,10 +1,11 @@
-import { useState, useMemo, useEffect } from 'react';
-import { Search, Gamepad2, Users, Keyboard, Play, X, Info, Loader2, AlertCircle } from 'lucide-react';
+import { useState, useMemo, useEffect, useCallback, FormEvent } from 'react';
+import { Search, Gamepad2, Users, Keyboard, Play, X, Info, Loader2, AlertCircle, Wallet, LogIn, User, Mail, Coins } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { supabase } from '@/src/lib/supabase';
 
 interface Game {
@@ -18,12 +19,114 @@ interface Game {
   thumbnail: string;
 }
 
+interface Profile {
+  id: string;
+  nick: string;
+  coins: number;
+  has_rewarded_email: boolean;
+  email?: string;
+}
+
 export default function App() {
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
+  
+  // Auth & Wallet State
+  const [user, setUser] = useState<any>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isRegisterSuccess, setIsRegisterSuccess] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [authForm, setAuthForm] = useState({ nick: '', password: '', email: '' });
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [isCheckingNick, setIsCheckingNick] = useState(false);
+  const [nickStatus, setNickStatus] = useState<'idle' | 'available' | 'taken'>('idle');
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+
+  // Fetch Profile
+  const fetchProfile = useCallback(async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      
+      if (error) throw error;
+      setProfile(data);
+    } catch (err) {
+      console.error('Error fetching profile:', err);
+    }
+  }, []);
+
+  const checkNickAvailability = async () => {
+    if (authForm.nick.length < 2) return;
+    setIsCheckingNick(true);
+    setNickStatus('idle');
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('nick')
+        .eq('nick', authForm.nick)
+        .maybeSingle();
+      
+      if (error && error.code !== 'PGRST116') throw error;
+      setNickStatus(data ? 'taken' : 'available');
+    } catch (err) {
+      console.error('Error checking nick:', err);
+    } finally {
+      setIsCheckingNick(false);
+    }
+  };
+
+  useEffect(() => {
+    // Initial Auth Check
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      if (session?.user) fetchProfile(session.user.id);
+    });
+
+    // Auth Listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        fetchProfile(session.user.id);
+      } else {
+        setProfile(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [fetchProfile]);
+
+  // Coin Reward Listener
+  useEffect(() => {
+    const handleMessage = async (event: MessageEvent) => {
+      if (event.data?.type === 'AWARD_COINS' && profile) {
+        const amount = event.data.amount || 10;
+        try {
+          const { data, error } = await supabase
+            .from('profiles')
+            .update({ coins: (profile.coins || 0) + amount })
+            .eq('id', profile.id)
+            .select()
+            .single();
+          
+          if (error) throw error;
+          setProfile(data);
+          console.log(`Awarded ${amount} coins!`);
+        } catch (err) {
+          console.error('Error awarding coins:', err);
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [profile]);
 
   useEffect(() => {
     async function fetchGames() {
@@ -117,6 +220,110 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleAuth = async (e: FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+
+    if (authForm.nick.length < 2) {
+      setAuthError('Nick must be at least 2 characters');
+      return;
+    }
+
+    if (authForm.password.length < 5) {
+      setAuthError('Password must be at least 5 characters');
+      return;
+    }
+
+    // Generate a consistent dummy email for Supabase Auth based on the nick
+    // This ensures we always use the same "email" for a given nick
+    const sanitizedNick = authForm.nick.toLowerCase().replace(/[^a-z0-9]/g, 'x');
+    const dummyEmail = `${sanitizedNick}_${authForm.nick.length}@dailyduel.space`;
+
+    try {
+      if (authMode === 'register') {
+        // 1. Check uniqueness in profiles table (publicly readable)
+        const { data: existing, error: checkError } = await supabase
+          .from('profiles')
+          .select('nick')
+          .eq('nick', authForm.nick)
+          .maybeSingle();
+        
+        if (checkError && checkError.code !== 'PGRST116') throw checkError;
+        if (existing) {
+          setAuthError('Nick already taken');
+          return;
+        }
+
+        // 2. Sign up with dummy email
+        const { error: signUpError } = await supabase.auth.signUp({
+          email: dummyEmail,
+          password: authForm.password,
+          options: {
+            data: { nick: authForm.nick }
+          }
+        });
+
+        if (signUpError) throw signUpError;
+        setIsRegisterSuccess(true);
+      } else {
+        // Login with dummy email
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: dummyEmail,
+          password: authForm.password
+        });
+
+        if (signInError) {
+          if (signInError.message.includes('Invalid login credentials')) {
+            throw new Error('Invalid nick or password');
+          }
+          throw signInError;
+        }
+        setIsAuthModalOpen(false);
+      }
+    } catch (err: any) {
+      console.error('Auth error:', err);
+      let message = err.message || 'An unexpected error occurred';
+      
+      if (message.includes('Email not confirmed')) {
+        message = 'Registration successful! However, you must disable "Confirm email" in your Supabase Auth Settings to log in with a nick.';
+      } else if (message.includes('rate limit exceeded')) {
+        message = 'Rate limit exceeded. Please wait a few minutes, or increase the "Rate Limits" in your Supabase Auth Settings (Authentication > Settings > Rate Limits).';
+      } else if (message.includes('Invalid login credentials')) {
+        message = 'Invalid nick or password';
+      }
+      
+      setAuthError(message);
+    }
+  };
+
+  const handleUpdateEmail = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!profile || !authForm.email) return;
+
+    try {
+      const reward = profile.has_rewarded_email ? 0 : 5;
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({ 
+          email: authForm.email,
+          coins: profile.coins + reward,
+          has_rewarded_email: true
+        })
+        .eq('id', profile.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      setProfile(data);
+      setIsProfileModalOpen(false);
+    } catch (err: any) {
+      console.error('Error updating email:', err);
+      if (err.message?.includes('rate limit exceeded')) {
+        alert('Rate limit exceeded. Please wait a few minutes before trying again.');
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-orange-500 selection:text-white">
       {/* Header */}
@@ -126,9 +333,41 @@ export default function App() {
             <Gamepad2 className="w-8 h-8 text-orange-500" />
             <span className="text-2xl font-black tracking-tighter uppercase">DailyDuel<span className="text-orange-500">.space</span></span>
           </div>
-          <div className="hidden md:flex items-center gap-6 text-sm font-medium text-white/60">
-            <span className="flex items-center gap-2"><Users className="w-4 h-4" /> Local Multiplayer</span>
-            <span className="flex items-center gap-2"><Keyboard className="w-4 h-4" /> One Keyboard</span>
+          
+          <div className="flex items-center gap-4 md:gap-8">
+            <div className="hidden md:flex items-center gap-6 text-sm font-medium text-white/60">
+              <span className="flex items-center gap-2"><Users className="w-4 h-4" /> Local Multiplayer</span>
+              <span className="flex items-center gap-2"><Keyboard className="w-4 h-4" /> One Keyboard</span>
+            </div>
+
+            {/* Wallet & Auth */}
+            <div className="flex items-center gap-3">
+              {profile && (
+                <div className="flex items-center gap-2 bg-orange-500/10 border border-orange-500/20 px-3 py-1.5 rounded-full">
+                  <Coins className="w-4 h-4 text-orange-500" />
+                  <span className="font-bold text-orange-500">{profile.coins}</span>
+                </div>
+              )}
+
+              {user ? (
+                <Button 
+                  variant="ghost" 
+                  className="gap-2 text-white/60 hover:text-white hover:bg-white/5"
+                  onClick={() => setIsProfileModalOpen(true)}
+                >
+                  <User className="w-4 h-4" />
+                  <span className="hidden sm:inline">{profile?.nick || 'Profile'}</span>
+                </Button>
+              ) : (
+                <Button 
+                  onClick={() => setIsAuthModalOpen(true)}
+                  className="bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-full px-6"
+                >
+                  <LogIn className="w-4 h-4 mr-2" />
+                  Login
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -271,6 +510,182 @@ export default function App() {
           </div>
         </div>
       </footer>
+
+      {/* Auth Modal */}
+      <Dialog open={isAuthModalOpen} onOpenChange={(open) => {
+        setIsAuthModalOpen(open);
+        if (!open) {
+          setIsRegisterSuccess(false);
+          setAuthError(null);
+        }
+      }}>
+        <DialogContent className="bg-[#0a0a0a] border-white/10 text-white max-w-sm">
+          {!isRegisterSuccess ? (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-2xl font-black uppercase tracking-tighter">
+                  {authMode === 'login' ? 'Welcome Back' : 'Join the Arena'}
+                </DialogTitle>
+                <DialogDescription className="text-white/40">
+                  {authMode === 'login' ? 'Enter your credentials to continue.' : 'Create an account to start earning coins.'}
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleAuth} className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-white/40">Nick</label>
+                  <div className="flex gap-2">
+                    <Input 
+                      required
+                      placeholder="Enter your nick"
+                      className={`bg-white/5 border-white/10 ${nickStatus === 'available' ? 'border-green-500/50' : nickStatus === 'taken' ? 'border-red-500/50' : ''}`}
+                      value={authForm.nick}
+                      onChange={(e) => {
+                        setAuthForm({ ...authForm, nick: e.target.value });
+                        setNickStatus('idle');
+                      }}
+                    />
+                    {authMode === 'register' && (
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="sm"
+                        className="border-white/10 text-xs"
+                        onClick={checkNickAvailability}
+                        disabled={isCheckingNick || authForm.nick.length < 2}
+                      >
+                        {isCheckingNick ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Check'}
+                      </Button>
+                    )}
+                  </div>
+                  {nickStatus === 'available' && <p className="text-[10px] text-green-500 font-bold uppercase">Nick is available!</p>}
+                  {nickStatus === 'taken' && <p className="text-[10px] text-red-500 font-bold uppercase">Nick is already taken</p>}
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-white/40">Password</label>
+                  <Input 
+                    required
+                    type="password"
+                    placeholder="Min 5 characters"
+                    className="bg-white/5 border-white/10"
+                    value={authForm.password}
+                    onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
+                  />
+                </div>
+                {authError && <p className="text-red-500 text-xs font-bold">{authError}</p>}
+                <Button type="submit" className="w-full bg-orange-500 hover:bg-orange-600 text-white font-black uppercase tracking-widest">
+                  {authMode === 'login' ? 'Login' : 'Register'}
+                </Button>
+              </form>
+              <div className="text-center">
+                <button 
+                  onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}
+                  className="text-xs text-white/40 hover:text-orange-500 transition-colors"
+                >
+                  {authMode === 'login' ? "Don't have an account? Register" : "Already have an account? Login"}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-2xl font-black uppercase tracking-tighter text-orange-500">
+                  Welcome, {authForm.nick}!
+                </DialogTitle>
+                <DialogDescription className="text-white/40">
+                  Your account has been created successfully.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-6 py-6">
+                <div className="bg-orange-500/10 border border-orange-500/20 p-4 rounded-xl">
+                  <div className="flex items-center gap-2 text-orange-500 mb-2">
+                    <Mail className="w-4 h-4" />
+                    <span className="text-xs font-black uppercase tracking-widest">Account Recovery</span>
+                  </div>
+                  <p className="text-xs text-white/60 mb-4">
+                    Add an email for account recovery. We promise <span className="text-white font-bold">no spam</span>, just security.
+                  </p>
+                  <p className="text-xs text-orange-500 font-bold mb-4 flex items-center gap-1">
+                    <Coins className="w-3 h-3" /> Get 5 COINS for adding it now!
+                  </p>
+                  <form onSubmit={handleUpdateEmail} className="flex gap-2">
+                    <Input 
+                      type="email"
+                      placeholder="your@email.com"
+                      className="bg-black/50 border-white/10 h-9 text-sm"
+                      value={authForm.email}
+                      onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })}
+                    />
+                    <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-white font-bold">Claim</Button>
+                  </form>
+                </div>
+                <Button 
+                  onClick={() => setIsAuthModalOpen(false)}
+                  className="w-full bg-white/5 hover:bg-white/10 text-white border border-white/10"
+                >
+                  Skip for now
+                </Button>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Profile Modal */}
+      <Dialog open={isProfileModalOpen} onOpenChange={setIsProfileModalOpen}>
+        <DialogContent className="bg-[#0a0a0a] border-white/10 text-white max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black uppercase tracking-tighter">
+              Your Profile
+            </DialogTitle>
+            <DialogDescription className="text-white/40">
+              Manage your account and rewards.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
+            <div className="flex items-center justify-between bg-white/5 p-4 rounded-xl border border-white/10">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-white/40 mb-1">Nick</p>
+                <p className="text-xl font-black text-orange-500">{profile?.nick}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs font-bold uppercase tracking-widest text-white/40 mb-1">Balance</p>
+                <div className="flex items-center gap-1 text-xl font-black">
+                  <Coins className="w-5 h-5 text-orange-500" />
+                  {profile?.coins}
+                </div>
+              </div>
+            </div>
+
+            {!profile?.has_rewarded_email && (
+              <div className="bg-orange-500/10 border border-orange-500/20 p-4 rounded-xl">
+                <div className="flex items-center gap-2 text-orange-500 mb-2">
+                  <Mail className="w-4 h-4" />
+                  <span className="text-xs font-black uppercase tracking-widest">Email Reward</span>
+                </div>
+                <p className="text-xs text-white/60 mb-4">Add an email for recovery and get <span className="text-orange-500 font-bold">100 COINS</span> instantly!</p>
+                <form onSubmit={handleUpdateEmail} className="flex gap-2">
+                  <Input 
+                    type="email"
+                    placeholder="your@email.com"
+                    className="bg-black/50 border-white/10 h-9 text-sm"
+                    value={authForm.email}
+                    onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })}
+                  />
+                  <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-white font-bold">Claim</Button>
+                </form>
+              </div>
+            )}
+
+            <Button 
+              variant="outline" 
+              className="w-full border-white/10 hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/50"
+              onClick={() => supabase.auth.signOut()}
+            >
+              Sign Out
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

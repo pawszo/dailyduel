@@ -144,8 +144,16 @@
             document.getElementById('p1Score').innerText = `HP: ${p1.hp}`;
             document.getElementById('p2Score').innerText = `HP: ${p2.hp}`;
 
-            if (p1.hp <= 0 && !gameOver) { gameOver = true; winner = 'Player 2 Wins!'; }
-            if (p2.hp <= 0 && !gameOver) { gameOver = true; winner = 'Player 1 Wins!'; }
+            if (p1.hp <= 0 && !gameOver) { 
+                gameOver = true; 
+                winner = 'Player 2 Wins!'; 
+                window.parent.postMessage({ type: 'AWARD_COINS', amount: 10 }, '*');
+            }
+            if (p2.hp <= 0 && !gameOver) { 
+                gameOver = true; 
+                winner = 'Player 1 Wins!'; 
+                window.parent.postMessage({ type: 'AWARD_COINS', amount: 10 }, '*');
+            }
 
             if (gameOver) {
                 ctx.fillStyle = 'rgba(0,0,0,0.7)';
