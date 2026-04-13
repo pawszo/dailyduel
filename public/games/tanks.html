@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tank Duel</title>
+    <style>
+        body { margin: 0; background: #222; color: #fff; font-family: sans-serif; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
+        canvas { border: 4px solid #444; background: #111; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        .controls { margin-top: 15px; font-size: 14px; color: #aaa; display: flex; gap: 40px; }
+        .p1 { color: #4ade80; font-weight: bold; }
+        .p2 { color: #f87171; font-weight: bold; }
+        #ui { position: absolute; top: 20px; display: flex; justify-content: space-between; width: 780px; font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <div class="p1" id="p1Score">HP: 100</div>
+        <div class="p2" id="p2Score">HP: 100</div>
+    </div>
+    <canvas id="game" width="800" height="500"></canvas>
+    <div class="controls">
+        <div class="p1">P1: WASD to Move, Q to Shoot</div>
+        <div class="p2">P2: Arrows to Move, M to Shoot</div>
+    </div>
+    <script>
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+
+        let gameOver = false;
+        let winner = '';
+
+        class Tank {
+            constructor(x, y, color, controls) {
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                this.controls = controls;
+                this.angle = 0;
+                this.speed = 0;
+                this.hp = 100;
+                this.width = 30;
+                this.height = 20;
+                this.bullets = [];
+                this.lastShot = 0;
+                this.cooldown = 500;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.angle);
+                
+                // Body
+                ctx.fillStyle = this.color;
+                ctx.fillRect(-this.width/2, -this.height/2, this.width, this.height);
+                
+                // Turret
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(0, -2, 20, 4);
+                ctx.beginPath();
+                ctx.arc(0, 0, 8, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.restore();
+
+                // Draw bullets
+                this.bullets.forEach((b, i) => {
+                    b.x += Math.cos(b.angle) * 7;
+                    b.y += Math.sin(b.angle) * 7;
+                    ctx.fillStyle = '#fff';
+                    ctx.beginPath();
+                    ctx.arc(b.x, b.y, 3, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Remove if out of bounds
+                    if(b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) {
+                        this.bullets.splice(i, 1);
+                    }
+                });
+            }
+
+            update(keys, otherTank) {
+                if (gameOver) return;
+
+                if (keys[this.controls.up]) this.speed = 3;
+                else if (keys[this.controls.down]) this.speed = -2;
+                else this.speed *= 0.9;
+
+                if (keys[this.controls.left]) this.angle -= 0.05;
+                if (keys[this.controls.right]) this.angle += 0.05;
+
+                const nextX = this.x + Math.cos(this.angle) * this.speed;
+                const nextY = this.y + Math.sin(this.angle) * this.speed;
+
+                // Boundary check
+                if (nextX > 20 && nextX < canvas.width - 20) this.x = nextX;
+                if (nextY > 20 && nextY < canvas.height - 20) this.y = nextY;
+
+                // Shooting
+                if (keys[this.controls.shoot] && Date.now() - this.lastShot > this.cooldown) {
+                    this.bullets.push({ x: this.x, y: this.y, angle: this.angle });
+                    this.lastShot = Date.now();
+                }
+
+                // Bullet collision
+                this.bullets.forEach((b, i) => {
+                    const dist = Math.hypot(b.x - otherTank.x, b.y - otherTank.y);
+                    if (dist < 20) {
+                        otherTank.hp -= 10;
+                        this.bullets.splice(i, 1);
+                    }
+                });
+            }
+        }
+
+        let p1 = new Tank(100, 250, '#4ade80', { up: 'w', down: 's', left: 'a', right: 'd', shoot: 'q' });
+        let p2 = new Tank(700, 250, '#f87171', { up: 'arrowup', down: 'arrowdown', left: 'arrowleft', right: 'arrowright', shoot: 'm' });
+        p2.angle = Math.PI;
+
+        const keys = {};
+        window.addEventListener('keydown', e => {
+            const key = e.key.toLowerCase();
+            keys[key] = true;
+            if (key === 'r' && gameOver) reset();
+        });
+        window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+        function reset() {
+            p1 = new Tank(100, 250, '#4ade80', { up: 'w', down: 's', left: 'a', right: 'd', shoot: 'q' });
+            p2 = new Tank(700, 250, '#f87171', { up: 'arrowup', down: 'arrowdown', left: 'arrowleft', right: 'arrowright', shoot: 'm' });
+            p2.angle = Math.PI;
+            gameOver = false;
+            winner = '';
+        }
+
+        function loop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            p1.update(keys, p2);
+            p2.update(keys, p1);
+            
+            p1.draw();
+            p2.draw();
+
+            document.getElementById('p1Score').innerText = `HP: ${p1.hp}`;
+            document.getElementById('p2Score').innerText = `HP: ${p2.hp}`;
+
+            if (p1.hp <= 0 && !gameOver) { gameOver = true; winner = 'Player 2 Wins!'; }
+            if (p2.hp <= 0 && !gameOver) { gameOver = true; winner = 'Player 1 Wins!'; }
+
+            if (gameOver) {
+                ctx.fillStyle = 'rgba(0,0,0,0.7)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 48px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(winner, canvas.width/2, canvas.height/2);
+                ctx.font = '24px sans-serif';
+                ctx.fillText('Press R to Restart', canvas.width/2, canvas.height/2 + 50);
+            }
+
+            requestAnimationFrame(loop);
+        }
+        loop();
+    </script>
+</body>
+</html>

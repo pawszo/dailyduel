@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>2-Player Snake</title>
+    <style>
+        body { margin: 0; background: #111; color: #fff; font-family: sans-serif; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
+        canvas { border: 2px solid #444; background: #000; }
+        .controls { margin-top: 10px; font-size: 14px; color: #888; display: flex; gap: 20px; }
+        .p1 { color: #0f0; }
+        .p2 { color: #f00; }
+    </style>
+</head>
+<body>
+    <canvas id="snake" width="400" height="400"></canvas>
+    <div class="controls">
+        <span class="p1">P1: WASD</span>
+        <span class="p2">P2: Arrows</span>
+    </div>
+    <script>
+        const canvas = document.getElementById('snake');
+        const ctx = canvas.getContext('2d');
+        const gridSize = 20;
+        const tileCount = canvas.width / gridSize;
+
+        let snake1 = [{x: 5, y: 10}];
+        let snake2 = [{x: 15, y: 10}];
+        let dir1 = {x: 1, y: 0};
+        let dir2 = {x: -1, y: 0};
+        let food = {x: 10, y: 10};
+        let gameOver = false;
+        let winner = '';
+
+        window.addEventListener('keydown', e => {
+            const key = e.key.toLowerCase();
+            switch(key) {
+                case 'w': if(dir1.y === 0) dir1 = {x: 0, y: -1}; break;
+                case 's': if(dir1.y === 0) dir1 = {x: 0, y: 1}; break;
+                case 'a': if(dir1.x === 0) dir1 = {x: -1, y: 0}; break;
+                case 'd': if(dir1.x === 0) dir1 = {x: 1, y: 0}; break;
+                case 'arrowup': if(dir2.y === 0) dir2 = {x: 0, y: -1}; break;
+                case 'arrowdown': if(dir2.y === 0) dir2 = {x: 0, y: 1}; break;
+                case 'arrowleft': if(dir2.x === 0) dir2 = {x: -1, y: 0}; break;
+                case 'arrowright': if(dir2.x === 0) dir2 = {x: 1, y: 0}; break;
+                case 'r': if(gameOver) reset(); break;
+            }
+        });
+
+        function reset() {
+            snake1 = [{x: 5, y: 10}];
+            snake2 = [{x: 15, y: 10}];
+            dir1 = {x: 1, y: 0};
+            dir2 = {x: -1, y: 0};
+            gameOver = false;
+            winner = '';
+            spawnFood();
+        }
+
+        function update() {
+            if(gameOver) return;
+
+            const head1 = {x: snake1[0].x + dir1.x, y: snake1[0].y + dir1.y};
+            const head2 = {x: snake2[0].x + dir2.x, y: snake2[0].y + dir2.y};
+
+            // Check collisions
+            if(head1.x < 0 || head1.x >= tileCount || head1.y < 0 || head1.y >= tileCount || 
+               snake1.some(s => s.x === head1.x && s.y === head1.y) ||
+               snake2.some(s => s.x === head1.x && s.y === head1.y)) {
+                gameOver = true; winner = 'Player 2 Wins!';
+            }
+            if(head2.x < 0 || head2.x >= tileCount || head2.y < 0 || head2.y >= tileCount || 
+               snake2.some(s => s.x === head2.x && s.y === head2.y) ||
+               snake1.some(s => s.x === head2.x && s.y === head2.y)) {
+                gameOver = true; winner = 'Player 1 Wins!';
+            }
+
+            if(gameOver) return;
+
+            snake1.unshift(head1);
+            if(head1.x === food.x && head1.y === food.y) {
+                spawnFood();
+            } else {
+                snake1.pop();
+            }
+
+            snake2.unshift(head2);
+            if(head2.x === food.x && head2.y === food.y) {
+                spawnFood();
+            } else {
+                snake2.pop();
+            }
+        }
+
+        function spawnFood() {
+            food = {
+                x: Math.floor(Math.random() * tileCount),
+                y: Math.floor(Math.random() * tileCount)
+            };
+        }
+
+        function draw() {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = '#0f0';
+            snake1.forEach(s => ctx.fillRect(s.x * gridSize, s.y * gridSize, gridSize-2, gridSize-2));
+
+            ctx.fillStyle = '#f00';
+            snake2.forEach(s => ctx.fillRect(s.x * gridSize, s.y * gridSize, gridSize-2, gridSize-2));
+
+            ctx.fillStyle = '#ff0';
+            ctx.fillRect(food.x * gridSize, food.y * gridSize, gridSize-2, gridSize-2);
+        }
+
+        setInterval(() => {
+            update();
+            draw();
+        }, 100);
+    </script>
+</body>
+</html>
