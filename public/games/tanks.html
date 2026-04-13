@@ -12,6 +12,11 @@
     </style>
 </head>
 <body>
+    <div id="menu" style="position: absolute; inset: 0; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100;">
+        <h1 style="color: #f97316; font-size: 48px; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 4px;">Tank Duel</h1>
+        <p style="color: #888; margin-bottom: 30px; text-align: center;">Armored combat. Aim, shoot, survive!<br>Winner gets 10 coins.</p>
+        <button onclick="startGame()" style="background: #f97316; color: white; border: none; padding: 15px 40px; font-size: 20px; font-weight: bold; cursor: pointer; border-radius: 50px; text-transform: uppercase; transition: transform 0.2s;">Start Duel</button>
+    </div>
     <div id="ui">
         <div class="p1" id="p1Score">HP: 100</div>
         <div class="p2" id="p2Score">HP: 100</div>
@@ -24,6 +29,15 @@
     <script>
         const canvas = document.getElementById('game');
         const ctx = canvas.getContext('2d');
+        const menu = document.getElementById('menu');
+
+        let gameActive = false;
+
+        function startGame() {
+            menu.style.display = 'none';
+            gameActive = true;
+            reset();
+        }
 
         let gameOver = false;
         let winner = '';
@@ -133,6 +147,10 @@
         }
 
         function loop() {
+            if (!gameActive) {
+                requestAnimationFrame(loop);
+                return;
+            }
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
             p1.update(keys, p2);
@@ -148,25 +166,23 @@
                 gameOver = true; 
                 winner = 'Player 2 Wins!'; 
                 window.parent.postMessage({ type: 'AWARD_COINS', amount: 10 }, '*');
+                showGameOver('Player 2 Wins!');
             }
             if (p2.hp <= 0 && !gameOver) { 
                 gameOver = true; 
                 winner = 'Player 1 Wins!'; 
                 window.parent.postMessage({ type: 'AWARD_COINS', amount: 10 }, '*');
-            }
-
-            if (gameOver) {
-                ctx.fillStyle = 'rgba(0,0,0,0.7)';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.fillStyle = '#fff';
-                ctx.font = 'bold 48px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText(winner, canvas.width/2, canvas.height/2);
-                ctx.font = '24px sans-serif';
-                ctx.fillText('Press R to Restart', canvas.width/2, canvas.height/2 + 50);
+                showGameOver('Player 1 Wins!');
             }
 
             requestAnimationFrame(loop);
+        }
+
+        function showGameOver(w) {
+            gameActive = false;
+            menu.style.display = 'flex';
+            menu.querySelector('h1').innerText = w;
+            menu.querySelector('button').innerText = 'Rematch';
         }
         loop();
     </script>

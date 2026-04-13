@@ -14,6 +14,11 @@
     </style>
 </head>
 <body>
+    <div id="menu" style="position: absolute; inset: 0; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100;">
+        <h1 style="color: #f97316; font-size: 48px; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 4px;">Tic Tac Toe</h1>
+        <p style="color: #888; margin-bottom: 30px; text-align: center;">Classic 3-in-a-row strategy.<br>Winner gets 10 coins.</p>
+        <button onclick="startGame()" style="background: #f97316; color: white; border: none; padding: 15px 40px; font-size: 20px; font-weight: bold; cursor: pointer; border-radius: 50px; text-transform: uppercase; transition: transform 0.2s;">Start Duel</button>
+    </div>
     <div id="status">Player X's Turn</div>
     <div class="grid" id="grid">
         <div class="cell" data-index="0"></div>
@@ -28,6 +33,15 @@
     </div>
     <button onclick="reset()">Reset Game</button>
     <script>
+        const menu = document.getElementById('menu');
+        let gameActive = false;
+
+        function startGame() {
+            menu.style.display = 'none';
+            gameActive = true;
+            reset();
+        }
+
         let board = ['', '', '', '', '', '', '', '', ''];
         let currentPlayer = 'X';
         const cells = document.querySelectorAll('.cell');
@@ -35,6 +49,7 @@
 
         cells.forEach(cell => {
             cell.addEventListener('click', () => {
+                if (!gameActive) return;
                 const index = cell.getAttribute('data-index');
                 if (board[index] === '' && !checkWinner()) {
                     board[index] = currentPlayer;
@@ -43,8 +58,10 @@
                     if (checkWinner()) {
                         status.innerText = `Player ${currentPlayer} Wins!`;
                         window.parent.postMessage({ type: 'AWARD_COINS', amount: 10 }, '*');
+                        showGameOver(`Player ${currentPlayer} Wins!`);
                     } else if (board.every(c => c !== '')) {
                         status.innerText = "It's a Draw!";
+                        showGameOver("It's a Draw!");
                     } else {
                         currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
                         status.innerText = `Player ${currentPlayer}'s Turn`;
@@ -52,6 +69,13 @@
                 }
             });
         });
+
+        function showGameOver(w) {
+            gameActive = false;
+            menu.style.display = 'flex';
+            menu.querySelector('h1').innerText = w;
+            menu.querySelector('button').innerText = 'Rematch';
+        }
 
         function checkWinner() {
             const wins = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];

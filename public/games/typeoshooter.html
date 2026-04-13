@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Type'o'shooter</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@500&display=swap');
+
+        body {
+            margin: 0;
+            background: #050505;
+            color: #fff;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        #game-container {
+            width: 800px;
+            height: 500px;
+            background-color: #000;
+            border: 2px solid #222;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 40px rgba(0,0,0,0.5);
+            border-radius: 12px;
+        }
+
+        #player {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #f97316, #ea580c);
+            position: absolute;
+            left: 60px;
+            top: 225px;
+            border-radius: 12px;
+            z-index: 10;
+            box-shadow: 0 0 20px rgba(249, 115, 22, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #player::after {
+            content: '';
+            width: 20px;
+            height: 4px;
+            background: #fff;
+            position: absolute;
+            right: -10px;
+            border-radius: 2px;
+        }
+
+        .monster {
+            width: 80px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            position: absolute;
+            border-radius: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 16px;
+            font-weight: bold;
+            color: #fff;
+            transition: left 0.5s linear, top 0.5s linear;
+            z-index: 5;
+            backdrop-filter: blur(4px);
+        }
+        .monster.targeted {
+            border-color: #f97316;
+            background: rgba(249, 115, 22, 0.2);
+            color: #f97316;
+        }
+
+        .projectile {
+            width: 15px;
+            height: 4px;
+            background-color: #f97316;
+            position: absolute;
+            border-radius: 2px;
+            z-index: 8;
+            transition: left 0.3s linear, top 0.3s linear;
+            box-shadow: 0 0 10px #f97316;
+        }
+
+        #keyboard {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 20px;
+            background-color: rgba(255,255,255,0.02);
+            border-radius: 16px;
+            margin-top: 20px;
+            max-width: 500px;
+            justify-content: center;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .key {
+            width: 45px;
+            height: 45px;
+            background-color: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: #888;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.1s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            user-select: none;
+        }
+        .key:hover {
+            background-color: rgba(255,255,255,0.1);
+            color: #fff;
+        }
+        .key.active {
+            background-color: #f97316;
+            color: #fff;
+            border-color: #f97316;
+            transform: translateY(2px);
+        }
+        .key.wide {
+            width: 80px;
+        }
+
+        #status-container {
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        #status {
+            font-size: 14px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #f97316;
+            margin-bottom: 5px;
+        }
+        #input-display {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 32px;
+            font-weight: 900;
+            color: #fff;
+            height: 40px;
+        }
+
+        #menu {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            backdrop-filter: blur(8px);
+        }
+        #menu h1 {
+            color: #f97316;
+            font-size: 48px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            font-weight: 900;
+        }
+        #menu p {
+            color: #888;
+            margin-bottom: 30px;
+            text-align: center;
+            max-width: 400px;
+            line-height: 1.6;
+        }
+        #menu button {
+            background: #f97316;
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 50px;
+            text-transform: uppercase;
+            transition: all 0.2s;
+            box-shadow: 0 10px 20px rgba(249, 115, 22, 0.3);
+        }
+        #menu button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 30px rgba(249, 115, 22, 0.4);
+        }
+
+        .score-badge {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255,255,255,0.05);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            color: #f97316;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="menu">
+            <h1>Type'o'shooter</h1>
+            <p>Solve equations to blast the incoming monsters! Type the answer and press ENTER.<br><br>Earn 10 coins for every 10 points!</p>
+            <button onclick="startGame()">Start Duel</button>
+        </div>
+        <div class="score-badge" id="score-display">Score: 0</div>
+        <div id="player"></div>
+    </div>
+
+    <div id="status-container">
+        <div id="status">Ready to fire</div>
+        <div id="input-display">_</div>
+    </div>
+
+    <div id="keyboard"></div>
+
+    <script>
+        const gameContainer = document.getElementById('game-container');
+        const keyboardDiv = document.getElementById('keyboard');
+        const statusDisplay = document.getElementById('status');
+        const inputDisplay = document.getElementById('input-display');
+        const scoreDisplay = document.getElementById('score-display');
+        const menu = document.getElementById('menu');
+
+        const PLAYER_SIZE = 50;
+        const MONSTER_WIDTH = 80;
+        const MONSTER_HEIGHT = 40;
+        let playerX = 60;
+        let playerY = 225;
+
+        let monsters = [];
+        let currentInput = '';
+        let score = 0;
+        let gameLoopInterval;
+        let gameActive = false;
+        let coinsAwarded = 0;
+
+        // --- 1. Keyboard Setup ---
+        const keys = [
+            '1', '2', '3', '4', '5', '6', '7', '8', '9', '0',
+            '.', 'BACKSPACE', 'ENTER'
+        ];
+
+        keys.forEach(key => {
+            const button = document.createElement('div');
+            button.classList.add('key');
+            if (key === 'BACKSPACE' || key === 'ENTER') button.classList.add('wide');
+            button.textContent = key === 'BACKSPACE' ? 'DEL' : key;
+            button.dataset.key = key;
+            button.addEventListener('click', () => {
+                if (!gameActive) return;
+                handleKeyPress(key);
+                button.classList.add('active');
+                setTimeout(() => button.classList.remove('active'), 100);
+            });
+            keyboardDiv.appendChild(button);
+        });
+
+        function startGame() {
+            menu.style.display = 'none';
+            gameActive = true;
+            resetGame();
+        }
+
+        function resetGame() {
+            // Clear existing monsters
+            monsters.forEach(m => m.remove());
+            monsters = [];
+            score = 0;
+            coinsAwarded = 0;
+            currentInput = '';
+            updateUI();
+            
+            for (let i = 0; i < 3; i++) {
+                spawnMonster();
+            }
+            
+            if (gameLoopInterval) clearInterval(gameLoopInterval);
+            gameLoopInterval = setInterval(() => {
+                if (gameActive) monsters.forEach(updateMonsterMovement);
+            }, 50);
+        }
+
+        function generateMathProblem() {
+            let num1, num2, operator, answer;
+            let maxNum = 5 + Math.floor(score / 2); 
+            let ops = ['+'];
+            if (score >= 5) ops.push('-');
+            if (score >= 15) ops.push('*');
+            
+            operator = ops[Math.floor(Math.random() * ops.length)];
+            
+            if (operator === '+') {
+                num1 = Math.floor(Math.random() * maxNum) + 1;
+                num2 = Math.floor(Math.random() * maxNum) + 1;
+                answer = num1 + num2;
+            } else if (operator === '-') {
+                num1 = Math.floor(Math.random() * maxNum) + 5;
+                num2 = Math.floor(Math.random() * num1);
+                answer = num1 - num2;
+            } else if (operator === '*') {
+                let maxMult = 2 + Math.floor(score / 10);
+                num1 = Math.floor(Math.random() * maxMult) + 2;
+                num2 = Math.floor(Math.random() * maxMult) + 2;
+                answer = num1 * num2;
+            }
+            
+            return { expression: `${num1}${operator}${num2}`, answer: answer };
+        }
+
+        function spawnMonster() {
+            const monster = document.createElement('div');
+            monster.classList.add('monster');
+            
+            const startX = gameContainer.clientWidth - MONSTER_WIDTH - 20; 
+            const startY = 50 + Math.random() * (gameContainer.clientHeight - MONSTER_HEIGHT - 100);
+            monster.style.left = `${startX}px`;
+            monster.style.top = `${startY}px`;
+            
+            const problem = generateMathProblem();
+            monster.textContent = problem.expression; 
+            monster.dataset.target = problem.answer; 
+            monster.dataset.targeted = 'false';
+            
+            gameContainer.appendChild(monster);
+            monsters.push(monster);
+        }
+
+        function updateMonsterMovement(monsterElement) {
+            if (monsterElement.dataset.targeted === 'true') return;
+
+            const monsterX = parseFloat(monsterElement.style.left);
+            const monsterY = parseFloat(monsterElement.style.top);
+            
+            const playerCenterX = playerX + (PLAYER_SIZE / 2);
+            const playerCenterY = playerY + (PLAYER_SIZE / 2);
+            const monsterCenterX = monsterX + (MONSTER_WIDTH / 2); 
+            const monsterCenterY = monsterY + (MONSTER_HEIGHT / 2); 
+
+            const dx = playerCenterX - monsterCenterX;
+            const dy = playerCenterY - monsterCenterY;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance > 40) {
+                // Speed increases with score
+                const speed = 1 + (score / 20);
+                monsterElement.style.left = `${monsterX + (dx / distance) * speed}px`;
+                monsterElement.style.top = `${monsterY + (dy / distance) * speed}px`;
+            } else {
+                gameOver();
+            }
+        }
+
+        function gameOver() {
+            gameActive = false;
+            clearInterval(gameLoopInterval);
+            menu.style.display = 'flex';
+            menu.querySelector('h1').innerText = 'Game Over';
+            menu.querySelector('p').innerHTML = `Final Score: ${score}<br>Monsters reached the base!`;
+            menu.querySelector('button').innerText = 'Try Again';
+        }
+
+        function fireProjectile(targetMonster) {
+            const proj = document.createElement('div');
+            proj.classList.add('projectile');
+            
+            const startX = playerX + PLAYER_SIZE;
+            const startY = playerY + (PLAYER_SIZE / 2) - 2;
+            proj.style.left = `${startX}px`;
+            proj.style.top = `${startY}px`;
+            gameContainer.appendChild(proj);
+
+            proj.getBoundingClientRect(); 
+
+            const targetX = parseFloat(targetMonster.style.left);
+            const targetY = parseFloat(targetMonster.style.top) + (MONSTER_HEIGHT / 2) - 2;
+            
+            proj.style.left = `${targetX}px`;
+            proj.style.top = `${targetY}px`;
+
+            setTimeout(() => {
+                proj.remove();
+                if (targetMonster.parentNode) {
+                    targetMonster.remove();
+                    monsters = monsters.filter(m => m !== targetMonster);
+                    score++;
+                    
+                    // Award coins every 10 points
+                    if (score > 0 && score % 10 === 0 && score > coinsAwarded * 10) {
+                        coinsAwarded++;
+                        window.parent.postMessage({ type: 'AWARD_COINS', amount: 10 }, '*');
+                        statusDisplay.textContent = "Bonus: +10 Coins!";
+                        setTimeout(() => statusDisplay.textContent = "Direct Hit!", 1000);
+                    } else {
+                        statusDisplay.textContent = "Direct Hit!";
+                    }
+                    
+                    updateUI();
+                    spawnMonster();
+                }
+            }, 300);
+        }
+
+        function handleKeyPress(key) {
+            if (key === 'BACKSPACE') {
+                currentInput = currentInput.slice(0, -1);
+            } else if (key === 'ENTER') {
+                submitInput();
+            } else if ((key >= '0' && key <= '9') || key === '.') {
+                if (currentInput.length < 5) currentInput += key;
+            }
+            updateUI();
+        }
+
+        function submitInput() {
+            if (currentInput === '') return;
+
+            const enteredNum = parseFloat(currentInput);
+            let foundMatch = false;
+            
+            // Find closest monster with matching answer
+            let closestMonster = null;
+            let minDistance = Infinity;
+
+            for (let monster of monsters) {
+                const target = parseFloat(monster.dataset.target);
+                if (enteredNum === target && monster.dataset.targeted === 'false') {
+                    const dist = parseFloat(monster.style.left);
+                    if (dist < minDistance) {
+                        minDistance = dist;
+                        closestMonster = monster;
+                    }
+                }
+            }
+
+            if (closestMonster) {
+                closestMonster.dataset.targeted = 'true';
+                closestMonster.classList.add('targeted');
+                fireProjectile(closestMonster);
+                foundMatch = true;
+            }
+
+            if (!foundMatch) {
+                 statusDisplay.textContent = `Miss: ${currentInput}`;
+                 statusDisplay.style.color = '#ef4444';
+                 setTimeout(() => {
+                    if (gameActive) {
+                        statusDisplay.textContent = "Ready to fire";
+                        statusDisplay.style.color = '#f97316';
+                    }
+                 }, 1000);
+            }
+
+            currentInput = '';
+            updateUI();
+        }
+
+        function updateUI() {
+            inputDisplay.textContent = currentInput || '_';
+            scoreDisplay.textContent = `Score: ${score}`;
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (!gameActive) return;
+            let key = e.key;
+            if (key === 'Backspace') key = 'BACKSPACE';
+            if (key === 'Enter') key = 'ENTER';
+            
+            const upperKey = key.toUpperCase();
+            if (keys.includes(upperKey)) {
+                handleKeyPress(upperKey);
+                const btn = document.querySelector(`.key[data-key="${upperKey}"]`);
+                if (btn) {
+                    btn.classList.add('active');
+                    setTimeout(() => btn.classList.remove('active'), 100);
+                }
+            }
+        });
+
+    </script>
+</body>
+</html>

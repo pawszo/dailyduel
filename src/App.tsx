@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, FormEvent } from 'react';
-import { Search, Gamepad2, Users, Keyboard, Play, X, Info, Loader2, AlertCircle, Wallet, LogIn, User, Mail, Coins } from 'lucide-react';
+import { Search, Gamepad2, Users, Keyboard, Play, X, Info, Loader2, AlertCircle, Wallet, LogIn, User, Mail, Coins, ChevronLeft, ChevronRight, Star, TrendingUp, Trophy } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -45,6 +45,7 @@ export default function App() {
   const [isCheckingNick, setIsCheckingNick] = useState(false);
   const [nickStatus, setNickStatus] = useState<'idle' | 'available' | 'taken'>('idle');
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [featuredIndex, setFeaturedIndex] = useState(0);
 
   // Fetch Profile
   const fetchProfile = useCallback(async (userId: string) => {
@@ -170,6 +171,16 @@ export default function App() {
           category: 'Action',
           url: '/games/tanks.html',
           thumbnail: 'https://picsum.photos/seed/tanks/400/250'
+        },
+        {
+          id: 'typeoshooter',
+          title: "Type'o'shooter",
+          description: 'Blast incoming monsters by solving equations. Fast fingers required!',
+          controls: 'Keyboard / Numpad',
+          players: '1 Player',
+          category: 'Arcade',
+          url: '/games/typeoshooter.html',
+          thumbnail: 'https://picsum.photos/seed/math/400/250'
         }
       ];
 
@@ -214,6 +225,18 @@ export default function App() {
       return matchesSearch && matchesCategory;
     });
   }, [games, searchQuery, selectedCategory]);
+
+  const featuredGames = useMemo(() => {
+    return games.slice(0, 3);
+  }, [games]);
+
+  useEffect(() => {
+    if (featuredGames.length === 0) return;
+    const interval = setInterval(() => {
+      setFeaturedIndex((prev) => (prev + 1) % featuredGames.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [featuredGames]);
 
   const handlePlay = (game: Game) => {
     setSelectedGame(game);
@@ -408,6 +431,102 @@ export default function App() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-12">
+        {/* Featured Games Carousel */}
+        {featuredGames.length > 0 && (
+          <section className="mb-20">
+            <div className="flex items-center gap-2 mb-6">
+              <Star className="w-5 h-5 text-orange-500 fill-orange-500" />
+              <h3 className="text-xl font-black uppercase tracking-widest">Featured Arena</h3>
+            </div>
+            
+            <div className="relative h-[400px] md:h-[500px] rounded-3xl overflow-hidden border border-white/10 group">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={featuredGames[featuredIndex].id}
+                  initial={{ opacity: 0, scale: 1.1 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+                  className="absolute inset-0"
+                >
+                  <img 
+                    src={featuredGames[featuredIndex].thumbnail} 
+                    alt={featuredGames[featuredIndex].title}
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-r from-black via-black/60 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent" />
+                  
+                  <div className="absolute inset-0 p-8 md:p-16 flex flex-col justify-center max-w-2xl">
+                    <motion.div
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.3 }}
+                    >
+                      <Badge className="bg-orange-500 text-white mb-4 px-4 py-1 text-xs font-black tracking-widest">FEATURED GAME</Badge>
+                      <h2 className="text-5xl md:text-7xl font-black uppercase tracking-tighter leading-[0.9] mb-6">
+                        {featuredGames[featuredIndex].title}
+                      </h2>
+                      <p className="text-white/60 text-lg md:text-xl mb-8 line-clamp-2">
+                        {featuredGames[featuredIndex].description}
+                      </p>
+                      <div className="flex flex-wrap gap-4">
+                        <Button 
+                          onClick={() => handlePlay(featuredGames[featuredIndex])}
+                          className="bg-orange-500 hover:bg-orange-600 text-white font-black uppercase tracking-widest px-8 py-6 rounded-xl text-lg shadow-[0_0_30px_rgba(249,115,22,0.4)]"
+                        >
+                          <Play className="w-6 h-6 mr-2 fill-current" /> Play Now
+                        </Button>
+                        <div className="flex items-center gap-4 px-6 py-3 bg-white/5 backdrop-blur-md rounded-xl border border-white/10">
+                          <div className="flex items-center gap-2">
+                            <Users className="w-4 h-4 text-orange-500" />
+                            <span className="text-sm font-bold">{featuredGames[featuredIndex].players}</span>
+                          </div>
+                          <div className="w-px h-4 bg-white/10" />
+                          <div className="flex items-center gap-2">
+                            <Trophy className="w-4 h-4 text-orange-500" />
+                            <span className="text-sm font-bold">10 Coins</span>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  </div>
+                </motion.div>
+              </AnimatePresence>
+
+              {/* Carousel Controls */}
+              <div className="absolute bottom-8 right-8 flex gap-2">
+                <button 
+                  onClick={() => setFeaturedIndex((prev) => (prev - 1 + featuredGames.length) % featuredGames.length)}
+                  className="w-12 h-12 rounded-full bg-white/5 backdrop-blur-md border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors"
+                >
+                  <ChevronLeft className="w-6 h-6" />
+                </button>
+                <button 
+                  onClick={() => setFeaturedIndex((prev) => (prev + 1) % featuredGames.length)}
+                  className="w-12 h-12 rounded-full bg-white/5 backdrop-blur-md border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors"
+                >
+                  <ChevronRight className="w-6 h-6" />
+                </button>
+              </div>
+
+              {/* Progress Indicators */}
+              <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-2">
+                {featuredGames.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setFeaturedIndex(i)}
+                    className={`h-1.5 rounded-full transition-all duration-500 ${
+                      featuredIndex === i ? 'w-8 bg-orange-500' : 'w-2 bg-white/20'
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* Search & Filter Bar */}
         <div className="flex flex-col gap-8 mb-12">
           <div className="flex flex-col md:flex-row gap-6 items-center justify-between">
@@ -449,22 +568,33 @@ export default function App() {
         </div>
 
         {/* Games Grid */}
+        <div className="flex items-center gap-2 mb-8">
+          <TrendingUp className="w-5 h-5 text-orange-500" />
+          <h3 className="text-xl font-black uppercase tracking-widest">All Games</h3>
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <AnimatePresence mode="popLayout">
             {filteredGames.map((game, index) => (
               <motion.div
                 key={game.id}
                 layout
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: index * 0.05 }}
+                initial={{ opacity: 0, y: 30, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={{ 
+                  duration: 0.4, 
+                  delay: index * 0.05,
+                  ease: [0.23, 1, 0.32, 1]
+                }}
+                whileHover={{ y: -8 }}
               >
                 <Card 
                   onClick={() => handlePlay(game)}
-                  className={`group cursor-pointer overflow-hidden transition-all duration-500 ${
+                  className={`group cursor-pointer overflow-hidden transition-all duration-500 relative ${
                     selectedGame?.id === game.id 
-                    ? 'bg-orange-500/10 border-orange-500 shadow-[0_0_20px_rgba(249,115,22,0.2)]' 
-                    : 'bg-white/5 border-white/10 hover:border-white/30'
+                    ? 'bg-orange-500/10 border-orange-500 shadow-[0_0_30px_rgba(249,115,22,0.3)]' 
+                    : 'bg-white/5 border-white/10 hover:border-white/30 hover:shadow-[0_0_30px_rgba(255,255,255,0.05)]'
                   }`}
                 >
                   <div className="relative aspect-video overflow-hidden">
@@ -474,20 +604,48 @@ export default function App() {
                       className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                       referrerPolicy="no-referrer"
                     />
-                    <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 group-hover:opacity-40 transition-opacity" />
+                    
+                    {/* Hover Overlay */}
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-orange-500/20 backdrop-blur-[2px]">
+                      <div className="bg-orange-500 text-white font-black px-6 py-2 rounded-full transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300 shadow-xl">
+                        PLAY NOW
+                      </div>
+                    </div>
+
                     {selectedGame?.id === game.id && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-orange-500/20 backdrop-blur-[2px]">
-                        <Badge className="bg-orange-500 text-white animate-pulse">NOW PLAYING</Badge>
+                      <div className="absolute top-4 right-4">
+                        <Badge className="bg-orange-500 text-white animate-pulse border-none">ACTIVE</Badge>
                       </div>
                     )}
                   </div>
-                  <CardHeader className="p-4">
-                    <CardTitle className="text-lg font-bold tracking-tight flex items-center justify-between">
+                  <CardHeader className="p-5">
+                    <div className="flex items-center justify-between mb-2">
+                      <Badge variant="outline" className="text-[10px] uppercase tracking-widest border-white/10 text-white/40 group-hover:text-orange-500 group-hover:border-orange-500/30 transition-colors">
+                        {game.category}
+                      </Badge>
+                      <div className="flex items-center gap-1 text-[10px] font-bold text-white/20">
+                        <Users className="w-3 h-3" />
+                        {game.players}
+                      </div>
+                    </div>
+                    <CardTitle className="text-xl font-black tracking-tight uppercase group-hover:text-orange-500 transition-colors">
                       {game.title}
-                      <Play className={`w-4 h-4 ${selectedGame?.id === game.id ? 'text-orange-500 fill-current' : 'text-white/20'}`} />
                     </CardTitle>
-                    <CardDescription className="text-xs line-clamp-1">{game.category} • {game.players}</CardDescription>
+                    <p className="text-white/40 text-xs line-clamp-2 mt-2 group-hover:text-white/60 transition-colors">
+                      {game.description}
+                    </p>
                   </CardHeader>
+                  
+                  {/* Bottom Bar */}
+                  <div className="h-1 w-full bg-white/5 overflow-hidden">
+                    <motion.div 
+                      className="h-full bg-orange-500"
+                      initial={{ width: 0 }}
+                      whileHover={{ width: '100%' }}
+                      transition={{ duration: 0.3 }}
+                    />
+                  </div>
                 </Card>
               </motion.div>
             ))}

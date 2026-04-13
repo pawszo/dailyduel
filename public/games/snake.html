@@ -11,6 +11,11 @@
     </style>
 </head>
 <body>
+    <div id="menu" style="position: absolute; inset: 0; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100;">
+        <h1 style="color: #f97316; font-size: 48px; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 4px;">Dual Snake</h1>
+        <p style="color: #888; margin-bottom: 30px; text-align: center;">Survive and trap your opponent!<br>Winner gets 10 coins.</p>
+        <button onclick="startGame()" style="background: #f97316; color: white; border: none; padding: 15px 40px; font-size: 20px; font-weight: bold; cursor: pointer; border-radius: 50px; text-transform: uppercase; transition: transform 0.2s;">Start Duel</button>
+    </div>
     <canvas id="snake" width="400" height="400"></canvas>
     <div class="controls">
         <span class="p1">P1: WASD</span>
@@ -19,8 +24,17 @@
     <script>
         const canvas = document.getElementById('snake');
         const ctx = canvas.getContext('2d');
+        const menu = document.getElementById('menu');
         const gridSize = 20;
         const tileCount = canvas.width / gridSize;
+
+        let gameActive = false;
+
+        function startGame() {
+            menu.style.display = 'none';
+            gameActive = true;
+            reset();
+        }
 
         let snake1 = [{x: 5, y: 10}];
         let snake2 = [{x: 15, y: 10}];
@@ -56,7 +70,7 @@
         }
 
         function update() {
-            if(gameOver) return;
+            if(!gameActive || gameOver) return;
 
             const head1 = {x: snake1[0].x + dir1.x, y: snake1[0].y + dir1.y};
             const head2 = {x: snake2[0].x + dir2.x, y: snake2[0].y + dir2.y};
@@ -67,12 +81,14 @@
                snake2.some(s => s.x === head1.x && s.y === head1.y)) {
                 gameOver = true; winner = 'Player 2 Wins!';
                 window.parent.postMessage({ type: 'AWARD_COINS', amount: 10 }, '*');
+                showGameOver('Player 2 Wins!');
             }
             if(head2.x < 0 || head2.x >= tileCount || head2.y < 0 || head2.y >= tileCount || 
                snake2.some(s => s.x === head2.x && s.y === head2.y) ||
                snake1.some(s => s.x === head2.x && s.y === head2.y)) {
                 gameOver = true; winner = 'Player 1 Wins!';
                 window.parent.postMessage({ type: 'AWARD_COINS', amount: 10 }, '*');
+                showGameOver('Player 1 Wins!');
             }
 
             if(gameOver) return;
@@ -90,6 +106,13 @@
             } else {
                 snake2.pop();
             }
+        }
+
+        function showGameOver(w) {
+            gameActive = false;
+            menu.style.display = 'flex';
+            menu.querySelector('h1').innerText = w;
+            menu.querySelector('button').innerText = 'Rematch';
         }
 
         function spawnFood() {
